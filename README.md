@@ -21,14 +21,14 @@ Where appropriate, the code will be object-oriented because:
 ### Proposal 1:
 * `data_importer.py`: Handles importing and preprocessing of data.
 * `config_manager.py`: Manages user inputs and configuration settings.
-* `aggregation_algorithms/`: A directory for your algorithms.
+* `aggregation_algorithms/`: A directory for the algorithms.
     * `base.py`: Contains the base class for aggregation algorithms.
     * `pctpc.py`: The PCTPC algorithm implementation.
     * `other_algorithms.py`: Placeholders for future algorithms.
 * `data_processor.py`: Performs data transformations.
 * `data_exporter.py`: Manages the output of aggregated data.
 * `main.py`: The main script where the workflow is defined.
-* `tests/`: A directory for your test cases.
+* `tests/`: A directory for test cases.
     * `test_data_importer.py`
     * `test_aggregation_algorithms.py`
     * `etc.`
