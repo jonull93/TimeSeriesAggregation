@@ -5,19 +5,19 @@ import numpy as np
 class PCTPCAggregator(AggregationAlgorithm):
     """
     PCTPC: 
-    Take a "database" of N number of timesteps (ΩN), where the data for each timestep is represented as a multidimensional vector x, and reduce it to K timesteps/vectors.
-    1) Assign one of three priority levels to each timestep, e.g. depending on whether it is a global maxima, local maxima or neither. Three subdatasets are thus formed: ΩH, ΩM and ΩL.
+    Take a "database" ΩN of N number of timesteps , where the data for each timestep is represented as a multidimensional vector x, and reduce it to K timesteps/vectors.
+    1) Assign one of three priority levels to each timestep, e.g. depending on whether it is a global extreme, local extreme or neither. Three subdatasets are thus formed: ΩH, ΩM and ΩL.
     2) Create N clusters, one for each vector of the database ΩN. Note that, at this point, the centroid of each cluster is equal to the vector contained in itself.
     3) Compute the dissimilarity between each pair of adjacent clusters I and J according to Ward's method: D(I, J)= 2|I||J| /( |I| + |J| ) ||¯xI - ¯xJ||^2
     where ¯xI and ¯xJ are defined as the centroids of clusters I and J, respectively.
     4) Identify the two adjacent clusters I∗ andJ∗ with minimum dissimilarity between them.
-    5)Compute the centroid xbar of merging clusters I∗ and J∗ by following the rules below: 
-    a) If both clusters I∗ and J∗ contain a vector of subset ΩH, set D(I∗,J∗) at a sufficiently large positive value and go to Step 4) without merging them.
-    b) If one of the clusters contains a vector of subset ΩH and the other does not, they are merged and the resulting centroid is equal to the vector with high-priority values.
-    c) If both clusters contain a vector of subset ΩM and none of them contain vectors of subset ΩH, they are merged and the resulting centroid is computed using the following equation:
+    5) Compute the centroid xbar of merging clusters I∗ and J∗ by following the rules below: 
+      a) If both clusters I∗ and J∗ contain a vector of subset ΩH, set D(I∗,J∗) at a sufficiently large positive value and go to Step 4) without merging them.
+      b) If one of the clusters contains a vector of subset ΩH and the other does not, they are merged and the resulting centroid is equal to the vector with high-priority values.
+      c) If both clusters contain a vector of subset ΩM and none of them contain vectors of subset ΩH, they are merged and the resulting centroid is computed using the following equation:
     xbar = (|I|xbar_I + |J|xbar_J) / (|I| + |J|)
-    d) If one of the clusters contains only vectors of subsets ΩM and ΩL, and the other contains only vectors of subset ΩL, they are merged and the resulting centroid is equal to the centroid of the former.
-    e) If both clusters contain only vectors of subset ΩL, they are merged and the resulting centroid is computed using the formula in c).
+      d) If one of the clusters contains only vectors of subsets ΩM and ΩL, and the other contains only vectors of subset ΩL, they are merged and the resulting centroid is equal to the centroid of the former.
+      e) If both clusters contain only vectors of subset ΩL, they are merged and the resulting centroid is computed using the formula in c).
     """
     def __init__(self, data:np.ndarray, clusters_nr_final=False, error_acceptable=False, verbose=False, columns_for_priority=None, columns_for_similarity=False):
         super().__init__()
@@ -42,13 +42,16 @@ class PCTPCAggregator(AggregationAlgorithm):
         self.columns_for_similarity = columns_for_similarity if columns_for_similarity else list(range(data.shape[1])) # The columns to use for similarity computation
         self.clusters_nr_final = clusters_nr_final  # The desired number of clusters (K)
         self.priorities = np.array([0]*len(data))  # Initialize with lowest priority
-        self.dissimilarity_vector = np.zeros(len(data) - 1)  # A vector to store the dissimilarity to the next cluster for each cluster
+        self.dissimilarity_vector = list(range(len(data) - 1))  # A vector to store the dissimilarity to the next cluster for each cluster
 
     def aggregate(self):
         self.assign_priorities()
         self.initialize_clusters()
         while len(self.clusters) > self.clusters_nr_final:
             self.merge_clusters() # this will update self.clusters and self.dissimilarity_vector
+            if self.verbose:
+                print(f"Cluster sizes:")
+                print([len(self.clusters[i]["vectors"]) for i in range(len(self.clusters))])
         return self.clusters
     
     def assign_priorities(self):
@@ -59,6 +62,8 @@ class PCTPCAggregator(AggregationAlgorithm):
         for column_index in self.columns_for_priority:
             column_priorities = self.find_priorities_for_column(self.data[:, column_index])
             self.priorities = np.maximum(self.priorities, column_priorities)
+        if self.clusters_nr_final < sum(self.priorities == 3):
+            raise ValueError(f"The number of high-priority timesteps ({sum(self.priorities == 3)}) exceeds the number of final clusters ({self.clusters_nr_final})")
         if len(self.columns_for_priority) > 1 and self.verbose:
             print(f"Final nr of high / medium / low priority timesteps: {np.sum(self.priorities == 3)} / {np.sum(self.priorities == 2)} / {np.sum(self.priorities == 1)}")
 
@@ -140,6 +145,8 @@ class PCTPCAggregator(AggregationAlgorithm):
             self.clusters.append(cluster)
             if i>0:
                 self.dissimilarity_vector[i-1] = self.compute_dissimilarity(self.clusters[i-1], self.clusters[i])
+        if self.verbose:
+            print(f"Initialized {len(self.clusters)} clusters and dissimilarity vector: {self.dissimilarity_vector[:10]} (10/{len(self.dissimilarity_vector)})")
 
     def merge_clusters(self):
         """
@@ -152,7 +159,7 @@ class PCTPCAggregator(AggregationAlgorithm):
         ind_min_dissimilarity = np.argmin(self.dissimilarity_vector)
         pair_to_merge = (ind_min_dissimilarity, ind_min_dissimilarity + 1)
         if self.verbose:
-            print(f"Pair to merge: {pair_to_merge} with dissimilarity {self.dissimilarity_vector[pair_to_merge]}")
+            print(f"Pair to merge: {pair_to_merge} with dissimilarity {self.dissimilarity_vector[ind_min_dissimilarity]:.4f} ({len(self.clusters)} clusters left)")
 
         # Step 5: Merge the identified clusters following the priority rules
         self.apply_merging_rules(pair_to_merge)
@@ -177,7 +184,7 @@ class PCTPCAggregator(AggregationAlgorithm):
         # Replace the clusters in the list
         self.clusters[i] = new_cluster
         del self.clusters[j]
-        del self.dissimilarity_vector[j]
+        del self.dissimilarity_vector[i]
         
         # Update the dissimilarity vector
         if i < len(self.clusters) - 1:
