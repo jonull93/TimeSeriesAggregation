@@ -1,3 +1,10 @@
 numpy
 pandas
 xarray
+openpyxl
+re
+pyocuntry
+sys
+os
+pathlib
+unittest

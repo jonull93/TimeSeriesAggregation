@@ -1,0 +1,3 @@
+# provide tech names on new lines or on the same line, separated by semi-colons (;)
+BECCS; BCCS
+DACCS

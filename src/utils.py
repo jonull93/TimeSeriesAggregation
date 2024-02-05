@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.append(r"./")
+
 baseload = ['U', "Nuclear", 'B', 'H', 'W', "Baseload"]
 baseload = baseload + [i.lower() for i in baseload]
 CCS = ['BCCS', 'HCCS', 'GCCS', 'BWCCS', 'BECCS', 'HWCCS', 'WGCCS', 'GWGCCS', ]
@@ -18,6 +22,17 @@ PtH = ['HP', 'EB', 'PtH']
 bat = ['bat', 'bat_cap', "Battery", "Bat. power", "Bat. energy"]
 PS = ["flywheel", "sync_cond", "super_cap"]
 
-tech_names = hydro + thermals + ["bat_cap", "Bat. power", "FC"] + VRE + H2 + bat + PS + PtH
-# now remove duplicates from order_cap2 while keeping the order
+tech_names = []
+if os.path.exists(r"data/input/additional_tech_names.txt"):
+    with open(r"data/input/additional_tech_names.txt") as f:
+        for line in f:
+            if line.strip() == "" or line.strip().startswith("#"):
+                continue
+            tech_names += [i.strip() for i in line.split(";")]
+
+tech_names += hydro + thermals + ["bat_cap", "Bat. power", "FC"] + VRE + H2 + bat + PS + PtH
+# now remove duplicates
 tech_names = list(dict.fromkeys(tech_names))
+
+if __name__ == "__main__":
+    print(tech_names)
