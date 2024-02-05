@@ -1,2 +1,10 @@
 # Auto detect text files and perform LF normalization
-* text=auto
+#* text=auto
+
+# Make sure all python files are listed as such, and that the markdown files (e.g. README) are not included in language stats
+*.py linguist-language=python
+*.md linguist-documentation
+docs/** linguist-documentation
+src/* linguist-detectable
+src/aggregation_algorithms/* linguist-detectable
+data/** -linguist-detectable
