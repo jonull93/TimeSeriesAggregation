@@ -17,9 +17,9 @@ def main():
     # TODO: Parse command-line arguments
     profiles, weights, regions_to_aggregate, heat_load_to_electrify = parse_arguments()
     # TODO: Load data using data_importer
-    ugly_data = import_data(profiles, weights, regions_to_aggregate)
+    ugly_data = import_data(profiles, weights)
     # TODO: Process data if necessary
-    data = process_data(ugly_data, heat_load_to_electrify)
+    data = process_data(ugly_data, heat_load_to_electrify, regions_to_aggregate)
 
     #combine import_data() and process_data() into black box?
     
