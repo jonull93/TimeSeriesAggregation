@@ -32,10 +32,10 @@ class PCTPCAggregator(AggregationAlgorithm):
             clusters_nr_final = 2
             if verbose:
                 print(f"Using acceptable final error: {error_acceptable}")
-        if columns_for_priority and len(columns_for_priority) != data.shape[1]:
-            raise ValueError("The number of columns for priority computation must match the number of columns in the data")
-        if columns_for_similarity and len(columns_for_similarity) != data.shape[1]:
-            raise ValueError("The number of columns for similarity computation must match the number of columns in the data")
+        #if columns_for_priority and len(columns_for_priority) != data.shape[1]:
+        #    raise ValueError("The number of columns for priority computation must match the number of columns in the data")
+        #if columns_for_similarity and len(columns_for_similarity) != data.shape[1]:
+        #    raise ValueError("The number of columns for similarity computation must match the number of columns in the data")
         self.data = data  # Assumed to be a numpy array where each row represents a timestep and each column represents a dimension of the vector
         self.verbose = verbose  # Whether to print debug information
         self.columns_for_priority = columns_for_priority if columns_for_priority else list(range(data.shape[1])) # The columns to use for priority computation
@@ -50,8 +50,9 @@ class PCTPCAggregator(AggregationAlgorithm):
         while len(self.clusters) > self.clusters_nr_final:
             self.merge_clusters() # this will update self.clusters and self.dissimilarity_vector
             if self.verbose:
-                print(f"Cluster sizes:")
-                print([len(self.clusters[i]["vectors"]) for i in range(len(self.clusters))])
+                #print(f"Cluster sizes:", [len(self.clusters[i]["vectors"]) for i in range(len(self.clusters))])
+                #print(f"Clustered indices:", [self.clusters[i]["original_indices"] for i in range(len(self.clusters)) if self.clusters[i]["original_indices"][-1]<20])
+                pass
         return self.clusters
     
     def assign_priorities(self):
@@ -59,8 +60,15 @@ class PCTPCAggregator(AggregationAlgorithm):
         Assign priorities to each timestep based on specified columns.
         Keeps the highest priority across the columns.
         """
+        if self.verbose:
+            print(f"Assigning priorities based on columns: {self.columns_for_priority}")
         for column_index in self.columns_for_priority:
-            column_priorities = self.find_priorities_for_column(self.data[:, column_index])
+            # If the column_index is a list or tuple, average the columns in the lis. This represents the combining of regions or technologies.
+            if type(column_index) in [list, tuple]:
+                column = np.mean(self.data[:, column_index], axis=1)
+            else:
+                column = self.data[:, column_index]
+            column_priorities = self.find_priorities_for_column(column)
             self.priorities = np.maximum(self.priorities, column_priorities)
         if self.clusters_nr_final < sum(self.priorities == 3):
             raise ValueError(f"The number of high-priority timesteps ({sum(self.priorities == 3)}) exceeds the number of final clusters ({self.clusters_nr_final})")
@@ -140,6 +148,7 @@ class PCTPCAggregator(AggregationAlgorithm):
             cluster = {
                 'centroid': vector,
                 'vectors': [vector],
+                'original_indices': [i], # Keep track of the original indices for debugging and visualization
                 'priority': self.priorities[i]
             }
             self.clusters.append(cluster)
@@ -156,10 +165,11 @@ class PCTPCAggregator(AggregationAlgorithm):
             return  # No clusters to merge
 
         # Step 4: Identify the pair of adjacent clusters with minimum dissimilarity
-        ind_min_dissimilarity = np.argmin(self.dissimilarity_vector)
+        ind_min_dissimilarity = np.argmin(self.dissimilarity_vector) # TODO: by only considering updated and previous near-minimums, the search can be made faster
         pair_to_merge = (ind_min_dissimilarity, ind_min_dissimilarity + 1)
         if self.verbose:
-            print(f"Pair to merge: {pair_to_merge} with dissimilarity {self.dissimilarity_vector[ind_min_dissimilarity]:.4f} ({len(self.clusters)} clusters left)")
+            #print(f"Pair to merge: {pair_to_merge} with dissimilarity {self.dissimilarity_vector[ind_min_dissimilarity]:.4f} ({len(self.clusters)} clusters left)")
+            pass
 
         # Step 5: Merge the identified clusters following the priority rules
         self.apply_merging_rules(pair_to_merge)
@@ -183,8 +193,8 @@ class PCTPCAggregator(AggregationAlgorithm):
 
         # Replace the clusters in the list
         self.clusters[i] = new_cluster
-        del self.clusters[j]
-        del self.dissimilarity_vector[i]
+        del self.clusters[j] # the cluster that got integrated into the other is removed
+        del self.dissimilarity_vector[i] # technically, either i or i-1 can be removed 
         
         # Update the dissimilarity vector
         if i < len(self.clusters) - 1:
@@ -217,6 +227,7 @@ class PCTPCAggregator(AggregationAlgorithm):
         return {
             'centroid': new_centroid,
             'vectors': cluster_i['vectors'] + cluster_j['vectors'],
+            'original_indices': cluster_i['original_indices'] + cluster_j['original_indices'],
             'priority': max(cluster_i['priority'], cluster_j['priority'])
         }
 
@@ -231,8 +242,9 @@ class PCTPCAggregator(AggregationAlgorithm):
         Returns:
         float: The computed dissimilarity.
         """
-        centroid_i = cluster_i['centroid'][self.columns_for_similarity]
-        centroid_j = cluster_j['centroid'][self.columns_for_similarity]
+        centroid_i = self.calculate_modified_centroid(cluster_i['centroid'])
+        centroid_j = self.calculate_modified_centroid(cluster_j['centroid'])
+
         size_i = len(cluster_i['vectors'])
         size_j = len(cluster_j['vectors'])
 
@@ -242,3 +254,42 @@ class PCTPCAggregator(AggregationAlgorithm):
         # Calculate dissimilarity using Ward's method
         dissimilarity = 2.0 * size_i * size_j / (size_i + size_j) * squared_distance
         return dissimilarity
+
+    def calculate_modified_centroid(self, centroid):
+        """
+        Calculate the modified centroid based on the columns_for_similarity.
+        Only used for the dissimilarity computation to account for regions and technologies that can be combined.
+
+        Parameters:
+        centroid (array-like): The original centroid.
+
+        Returns:
+        array-like: The modified centroid.
+        """
+        modified_centroid = []
+
+        for col in self.columns_for_similarity:
+            if isinstance(col, (list, tuple)):
+                # Average the values of the specified columns
+                combined_value = np.mean([centroid[c] for c in col])
+                modified_centroid.append(combined_value)
+            else:
+                # Use the value of the specified column
+                modified_centroid.append(centroid[col])
+
+        return np.array(modified_centroid)
+    
+
+def test_aggregator(timesteps=8760, dimensions=100, final_clusters=500):
+    data = np.random.rand(timesteps, dimensions)
+    aggregator = PCTPCAggregator(data, clusters_nr_final=final_clusters, verbose=True, columns_for_priority=[0,(1,2)], columns_for_similarity=[0,(1,2)])
+    clusters = aggregator.aggregate() 
+    # clusters is a list of dictionaries, each dictionary contains "centroid", "vectors" and "priority"
+    # concatenating all the vectors in the clusters recreates the 'data' from the previous step
+
+if __name__ == "__main__":
+    # Example usage
+    test_aggregator()
+    # clusters is a list of dictionaries, each dictionary contains "centroid", "vectors" and "priority"
+    # concatenating all the vectors in the clusters recreates the 'data' from the previous step
+    print(f"Successfully clustered indices:", [cluster["original_indices"] for cluster in clusters])

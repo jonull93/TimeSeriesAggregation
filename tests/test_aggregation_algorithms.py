@@ -6,9 +6,9 @@ class TestPCTPCAggregator(unittest.TestCase):
     
     def setUp(self):
         # Sample data for testing
-        self.sample_data = np.random.rand(30, 3)  # 100 timesteps, 10 dimensions
+        self.sample_data = np.random.rand(300, 10)  # 100 timesteps, 10 dimensions
         self.sample_data[2,2] = 2 # Add a global maximum
-        self.clusters_nr_final = 10
+        self.clusters_nr_final = 30  # Number of clusters to be created
 
     def test_initialization(self):
         aggregator = PCTPCAggregator(data=self.sample_data, clusters_nr_final=self.clusters_nr_final)
@@ -49,9 +49,12 @@ class TestPCTPCAggregator(unittest.TestCase):
         # Additional checks to validate merging rules
 
     def test_full_aggregation_process(self):
-        aggregator = PCTPCAggregator(data=self.sample_data, clusters_nr_final=self.clusters_nr_final, verbose=True)
+        aggregator = PCTPCAggregator(data=self.sample_data, clusters_nr_final=self.clusters_nr_final, verbose=False, columns_for_priority=[0,(1,2)], columns_for_similarity=[0,(1,2)])
         final_clusters = aggregator.aggregate()
         self.assertEqual(len(final_clusters), self.clusters_nr_final)
+        self.assertEqual(len(final_clusters[0]["centroid"]), len(self.sample_data[0]))
+        clusters_to_print = final_clusters if len(final_clusters) < 50 else final_clusters[:50]
+        print(f"Successfully clustered indices:", [cluster["original_indices"] for cluster in final_clusters])
         # Additional assertions can be made based on the expected properties of the final clusters
 
 if __name__ == '__main__':
