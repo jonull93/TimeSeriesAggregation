@@ -3,6 +3,14 @@ import numpy as np
 import pandas as pd
 import os
 
+"""
+conda create -n fresh python=3.12
+conda activate fresh
+pip install "C:\...\TimeSeriesAggregator"
+pip install openpyxl
+python "C:\...\TimeSeriesAggregator\example_usage.py"
+"""
+
 ## Construct sample DataFrame 
 # read Load and Temp from "C:\Users\vijulk\OneDrive - Vitecsoftware Group AB\workspace.xlsx" Sheet2
 dirpath = os.path.dirname(__file__)
