@@ -8,11 +8,12 @@ import sys
 #if __name__ == "__main__": sys.path.append(r"./") # so that the tech_names can be imported from the data.input.possible_tech_names module
 from utils import tech_names, VRE
 import os
-from pathlib import Path
+from pathlib import Path, WindowsPath
 
-# if ../data/input/possible_tech_names.txt exists, add the tech names to the list
-if os.path.exists("../data/input/possible_tech_names.txt"):
-    with open("../data/input/possible_tech_names.txt", "r") as reader:
+# if ../data/input/additional_tech_names.txt exists, add the tech names to the list
+p = Path("../data/input/additional_tech_names.txt")
+if p.exists():
+    with open(p.resolve(), "r") as reader:
         for line in reader:
             if line[0] in ["#","*"]:
                 continue
@@ -32,16 +33,20 @@ def looks_like_tech(item):
         return True
     return False
   
+def get_filepath(file_path):
+    # check if the file exists, otherwise, check if the file exists in the input folder
+    p = Path(file_path)
+    if not p.exists():
+        glob_result = list(Path("..").glob(f"**/{file_path}")) # search for the file in the parent directory and its subdirectories
+        if len(glob_result) > 0:
+            return str(glob_result[0].resolve())
+        else:
+            raise ValueError(f"File {file_path} not found in the input folder or the current directory.")
+    return file_path
 class TimeseriesReader():
     def __init__(self, filepath):
-        self.filepath = filepath
         # check if the file exists, otherwise, check if the file exists in the input folder
-        if not os.path.exists(self.filepath):
-            if os.path.exists(Path.cwd() / 'data' / 'input' /  'profiles to load' / self.filepath):
-                self.filepath = Path.cwd() / 'data' / 'input' / 'profiles to load' / self.filepath
-                self.filepath = str(self.filepath)
-            else:
-                raise ValueError(f"File {self.filepath} not found in the input folder or the current directory.")
+        self.filepath = get_filepath(filepath)
 
     def read(self):
         # Read data from file and return a pandas DataFrame
@@ -54,7 +59,7 @@ class TimeseriesReader():
         #   heat if "heat" is in the file name, 
         #   elec if "elec" is in the file name or ("heat" is not in the file name and ("load" is in the file name or "demand" is in the file name)),
         #   inflow if "inflow" is in the file name or "hydro" is in the file name
-        filename = self.filepath.split("/")[-1]
+        filename = Path(self.filepath).name # get the filename from the path
         if "heat" in filename:
             return "heat"
         elif "elec" in filename or ("heat" not in filename and ("load" in filename or "demand" in filename)):
@@ -106,14 +111,14 @@ class incDataReader(TimeseriesReader):
         return df
     
 class DataFrameLoader():
-    def __init__(self, filepath):
+    def __init__(self, filepath, **kwargs):
         self.filepath = filepath
         self.df = None
 
     def load(self):
         # call the appropriate reader based on the file extension
         if self.filepath.endswith(".csv"):
-            reader = CsvDataReader(self.filepath)
+            reader = CsvDataReader(self.filepath, **self.kwargs)
         elif self.filepath.endswith(".xlsx"):
             reader = XlsxDataReader(self.filepath)
         elif self.filepath.endswith(".inc"):
@@ -190,12 +195,7 @@ class WeightReader():
     def __init__(self, filepath, version=None):
         self.filepath = filepath
         # check if the file exists, otherwise, check if the file exists in the input folder
-        if not os.path.exists(self.filepath):
-            if os.path.exists(Path.cwd() / 'data' / 'input' / self.filepath):
-                self.filepath = Path.cwd() / 'data' / 'input' / self.filepath
-                self.filepath = str(self.filepath)
-            else:
-                raise ValueError(f"File {self.filepath} not found in the input folder or the current directory.")
+        self.filepath = get_filepath(filepath)
         self.version = version
         self.weights = None
         self.expected_techs = ["WON", "wind", "PV", "solar", "PVPA2", "WOFF5", "WONA5", "WONA2"] # at least one of these should be in the first or second column
@@ -302,6 +302,7 @@ def DataLoader(profiles, weights=False):
     # Load the weights from the filepath in weights and return a DataFrame
     timeseries_data = pd.DataFrame()
     for file_path in profiles:
+        if type(file_path) == WindowsPath: file_path = str(file_path)
         data = DataFrameLoader(file_path).load()
         # if a colum level looks like a year, move it to the first level
         first_col = data.columns[0]
@@ -323,9 +324,9 @@ if __name__ == "__main__":
     load_file = r"hourly_load_1980-1981.inc"
     heat_file = r"hourly_heat_demand_1980-1981.inc"
     VRE_file = r"gen_profile_VRE_1980-1981.inc"
-    profiles = [inflow_file, load_file, heat_file, VRE_file]
-    # get all file names in data/input/profiles to load
-    profiles = [str(Path.cwd() / 'data' / 'input' / 'profiles to load' / file) for file in os.listdir(Path.cwd() / 'data' / 'input' / 'profiles to load')]
+    #profiles = [inflow_file, load_file, heat_file, VRE_file]
+    # get all file names in ../data/input/profiles to load
+    profiles = list(Path("../data/input/profiles to load").glob("*")) # get all files in the folder
     print(profiles)
     cap_file = r"capacity_mix.xlsx"
     inflow_df = DataFrameLoader(inflow_file).load()
