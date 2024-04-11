@@ -1,11 +1,12 @@
 from src.aggregation_algorithms.pctpc import PCTPCAggregator
 import numpy as np
 import pandas as pd
-
+import os
 
 ## Construct sample DataFrame 
 # read Load and Temp from "C:\Users\vijulk\OneDrive - Vitecsoftware Group AB\workspace.xlsx" Sheet2
-df = pd.read_excel("data\\input\\example_usage.xlsx", sheet_name="Sheet2")
+dirpath = os.path.dirname(__file__)
+df = pd.read_excel(f"{dirpath}\\data\\input\\example_usage.xlsx", sheet_name="Sheet2")
 nr_rows = len(df) # 96 rows
 df2 = pd.DataFrame(np.random.randint(0,nr_rows,size=(nr_rows, 2)), columns=list('AB')) # Free-rider columns A and B that do not affect dissimilarity calculation
 df = pd.concat([df, df2], axis=1) # Load, Temp, A, B

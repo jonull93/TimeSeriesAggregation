@@ -9,5 +9,9 @@ setup(
     author='Jonathan Ullmark',
     url=r'https://github.com/jonull93/TimeSeriesAggregator',
     license='MIT',
+    install_requires=[
+        'numpy',
+        'pandas',
+    ],
 
 )
