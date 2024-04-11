@@ -56,3 +56,5 @@ with pd.ExcelWriter(f"{dirpath}\\data\\input\\example_usage.xlsx", mode='a', eng
     df.to_excel(writer, sheet_name="Original", index=False)
     agg_df.to_excel(writer, sheet_name="Aggregated", index=False)
     decompressed_df.to_excel(writer, sheet_name="Decompressed", index=False)
+
+print("-- Aggregated data saved to Excel --")
