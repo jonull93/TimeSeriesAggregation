@@ -1,4 +1,5 @@
-from src.aggregation_algorithms.pctpc import PCTPCAggregator
+from TSA.algorithms.pctpc import PCTPCAggregator
+from TSA.data_importer import get_filepath
 import numpy as np
 import pandas as pd
 import os
@@ -8,13 +9,13 @@ conda create -n fresh python=3.12
 conda activate fresh
 pip install "C:\...\TimeSeriesAggregator"
 pip install openpyxl
-python "C:\...\TimeSeriesAggregator\example_usage.py"
+python "C:\...\TimeSeriesAggregator\docs\example_usage.py"
 """
 
 ## Construct sample DataFrame 
 # read Load and Temp from "C:\Users\vijulk\OneDrive - Vitecsoftware Group AB\workspace.xlsx" Sheet2
-dirpath = os.path.dirname(__file__)
-df = pd.read_excel(f"{dirpath}\\data\\input\\example_usage.xlsx", sheet_name="Sheet2")
+excel_path = get_filepath("example_usage.xlsx")
+df = pd.read_excel(excel_path, sheet_name="Sheet2")
 nr_rows = len(df) # 96 rows
 df2 = pd.DataFrame(np.random.randint(0,nr_rows,size=(nr_rows, 2)), columns=list('AB')) # Free-rider columns A and B that do not affect dissimilarity calculation
 df = pd.concat([df, df2], axis=1) # Load, Temp, A, B
@@ -60,7 +61,7 @@ for index, row in agg_df.iterrows():
     decompressed_rows = pd.DataFrame(repeated_rows, columns=agg_df.columns)
     decompressed_df = pd.concat([decompressed_df, decompressed_rows], ignore_index=True)
 
-with pd.ExcelWriter(f"{dirpath}\\data\\input\\example_usage.xlsx", mode='a', engine='openpyxl', if_sheet_exists='replace') as writer:
+with pd.ExcelWriter(excel_path, mode='a', engine='openpyxl', if_sheet_exists='replace') as writer:
     df.to_excel(writer, sheet_name="Original", index=False)
     agg_df.to_excel(writer, sheet_name="Aggregated", index=False)
     decompressed_df.to_excel(writer, sheet_name="Decompressed", index=False)
