@@ -57,8 +57,9 @@ class PCTPCAggregator(AggregationAlgorithm):
     
     def assign_priorities(self):
         """
-        Assign priorities to each timestep based on specified columns.
-        Keeps the highest priority across the columns.
+        Assign priorities to each timestep based on columns specified in columns_for_priority. Priorities are used to determine how clusters are merged.
+        When multiple columns are specified, the maximum priority is taken for each timestep.
+        1: Low priority, 2: Medium priority, 3: High priority
         """
         if self.verbose:
             print(f"Assigning priorities based on columns: {self.columns_for_priority}")
@@ -107,7 +108,7 @@ class PCTPCAggregator(AggregationAlgorithm):
             print(f"Nr of high / medium / low priority timesteps: {np.sum(priorities == 3)} / {np.sum(priorities == 2)} / {np.sum(priorities == 1)}")
         return priorities
 
-    @staticmethod
+    @staticmethod # Static method since it does not depend on the instance (no self.# arguments) (could be a separate function outside the class as well)
     def find_local_extrema(column):
         # Shift the column to the right and left
         left_shifted = np.roll(column, 1)
@@ -242,8 +243,8 @@ class PCTPCAggregator(AggregationAlgorithm):
         Returns:
         float: The computed dissimilarity.
         """
-        centroid_i = self.calculate_modified_centroid(cluster_i['centroid'])
-        centroid_j = self.calculate_modified_centroid(cluster_j['centroid'])
+        centroid_i = self.calculate_centroid_for_dissimilarity(cluster_i['centroid'])
+        centroid_j = self.calculate_centroid_for_dissimilarity(cluster_j['centroid'])
 
         size_i = len(cluster_i['vectors'])
         size_j = len(cluster_j['vectors'])
@@ -255,27 +256,30 @@ class PCTPCAggregator(AggregationAlgorithm):
         dissimilarity = 2.0 * size_i * size_j / (size_i + size_j) * squared_distance
         return dissimilarity
 
-    def calculate_modified_centroid(self, centroid):
+    def calculate_centroid_for_dissimilarity(self, centroid):
         """
         Calculate the modified centroid based on the columns_for_similarity.
         Only used for the dissimilarity computation to account for regions and technologies that can be combined.
 
         Parameters:
-        centroid (array-like): The original centroid.
+        centroid (array-like): The original centroid with full dimensions.
 
         Returns:
-        array-like: The modified centroid.
+        array-like: A modified centroid containing only columns in columns_for_similarity.
         """
         modified_centroid = []
-
+        #for i, col in enumerate(self.columns_for_similarity):
         for col in self.columns_for_similarity:
+            # To add weighted columns, enumerate the above loop rescale each value in the centroid vector by the corresponding weight
+            #w = self.weights_for_similarity[i]
+            w = 1
             if isinstance(col, (list, tuple)):
                 # Average the values of the specified columns
                 combined_value = np.mean([centroid[c] for c in col])
-                modified_centroid.append(combined_value)
+                modified_centroid.append(combined_value*w)
             else:
                 # Use the value of the specified column
-                modified_centroid.append(centroid[col])
+                modified_centroid.append(centroid[col]*w)
 
         return np.array(modified_centroid)
     
