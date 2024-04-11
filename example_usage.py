@@ -52,7 +52,7 @@ for index, row in agg_df.iterrows():
     decompressed_rows = pd.DataFrame(repeated_rows, columns=agg_df.columns)
     decompressed_df = pd.concat([decompressed_df, decompressed_rows], ignore_index=True)
 
-with pd.ExcelWriter("data\\input\\example_usage.xlsx", mode='a', engine='openpyxl', if_sheet_exists='replace') as writer:
+with pd.ExcelWriter(f"{dirpath}\\data\\input\\example_usage.xlsx", mode='a', engine='openpyxl', if_sheet_exists='replace') as writer:
     df.to_excel(writer, sheet_name="Original", index=False)
     agg_df.to_excel(writer, sheet_name="Aggregated", index=False)
     decompressed_df.to_excel(writer, sheet_name="Decompressed", index=False)
