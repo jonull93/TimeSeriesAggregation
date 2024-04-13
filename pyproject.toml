@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=51", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+
+
+[project]
+requires-python = ">=3.6"
+name = "TimeSeriesAggregator"
+version = "0.1"
+keywords = ["time series", "data", "aggregation", "chronological aggregation"]
+authors = [{name = "Jonathan Ullmark"}]
+description = "A package for aggregating time series data."
+readme = "README.md"
+license = {file = "LICENSE"}
+dependencies = [
+    "numpy",
+    "pandas"
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+documentation = "https://github.com/jonull93/TimeSeriesAggregator/docs"
+repository = "https://github.com/jonull93/TimeSeriesAggregator.git"
+homepage = "https://github.com/jonull93/TimeSeriesAggregator"

@@ -5,7 +5,6 @@ import numpy as np
 import re
 import pycountry
 import sys
-#if __name__ == "__main__": sys.path.append(r"./") # so that the tech_names can be imported from the data.input.possible_tech_names module
 from utils import tech_names, VRE
 import os
 from pathlib import Path, WindowsPath
