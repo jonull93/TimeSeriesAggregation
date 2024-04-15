@@ -1,8 +1,7 @@
 import unittest
-from src.data_importer import DataFrameLoader, XlsxWeightReader, DataLoader
+from TSA.data_importer import DataFrameLoader, XlsxWeightReader, DataLoader
 
-
-"""
+r""" 
     # Example usage
     inflow_file = r"C:\git\TimeSeriesAggregation\data\input\hourly_hydro_inflow_1980-1981.inc"
     load_file = r"hourly_load_1980-1981.inc"

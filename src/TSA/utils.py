@@ -36,3 +36,21 @@ tech_names = list(dict.fromkeys(tech_names))
 
 if __name__ == "__main__":
     print(tech_names)
+
+def print_red(to_print, *argv, replace_this_line=False, **kwargs):
+    try: 
+        from termcolor import colored
+        import os
+        os.system('color')
+    except ImportError:
+        print(to_print, *argv, **kwargs)
+    if type(to_print) != str:
+        to_print = str(to_print)
+    if len(argv) > 0:
+        for arg in argv:
+            to_print += "\n"+str(arg)
+    if replace_this_line:
+        end = '\r'
+    else:
+        end = kwargs.pop('end', '\n')
+    print(colored(to_print, "red"), end=end, **kwargs)

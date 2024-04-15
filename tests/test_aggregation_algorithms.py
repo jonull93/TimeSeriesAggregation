@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from src.aggregation_algorithms.pctpc import PCTPCAggregator
+from TSA.algorithms.pctpc import PCTPCAggregator
 
 class TestPCTPCAggregator(unittest.TestCase):
     
@@ -14,6 +14,11 @@ class TestPCTPCAggregator(unittest.TestCase):
         aggregator = PCTPCAggregator(data=self.sample_data, clusters_nr_final=self.clusters_nr_final)
         self.assertEqual(aggregator.data.shape, self.sample_data.shape)
         self.assertEqual(aggregator.clusters_nr_final, self.clusters_nr_final)
+        aggregator = PCTPCAggregator(data=self.sample_data, columns_for_similarity=[0,1,2])
+        self.assertEqual(aggregator.columns_for_similarity, [0,1,2])
+        aggregator = PCTPCAggregator(data=self.sample_data, columns_for_similarity={0:1,1:2,2:3})
+        self.assertEqual(aggregator.columns_for_similarity, [0,1,2])
+        self.assertTrue((aggregator.weights_for_similarity == np.array([1,2,3])).all())
 
     # Additional setup and initialization tests
 
@@ -34,10 +39,21 @@ class TestPCTPCAggregator(unittest.TestCase):
         # Additional checks for the structure and content of the clusters
 
     def test_dissimilarity_computation(self):
-        aggregator = PCTPCAggregator(data=self.sample_data, clusters_nr_final=self.clusters_nr_final)
+        self.sample_known_data = np.array([[1, 2, 3], [2, 3, 4], [4, 5, 6]])
+        aggregator = PCTPCAggregator(data=self.sample_known_data, columns_for_similarity=[0,1])
         aggregator.initialize_clusters()
         dissimilarity = aggregator.compute_dissimilarity(aggregator.clusters[0], aggregator.clusters[1])
         # Assert statements based on expected dissimilarity
+        self.assertEqual(dissimilarity, 2.0)
+
+    def test_weighted_dissimilarity_computation(self):
+        self.sample_known_data = np.array([[1, 2, 3], [2, 3, 4], [4, 5, 6]])
+        aggregator = PCTPCAggregator(data=self.sample_known_data, columns_for_similarity={0:1,1:2})
+        aggregator.initialize_clusters()
+        dissimilarity = aggregator.compute_dissimilarity(aggregator.clusters[0], aggregator.clusters[1])
+        # Assert statements based on expected dissimilarity
+        self.assertEqual(dissimilarity, 5.0)
+
 
     def test_cluster_merging(self):
         aggregator = PCTPCAggregator(data=self.sample_data, clusters_nr_final=self.clusters_nr_final)

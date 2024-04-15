@@ -353,7 +353,7 @@ def load_region_specs(file_path):
     # The region specifications should be a dictionary with strings as keys and a list of regions to aggregate as values
     pass
 
-def import_data2(profiles, weights, regions_to_aggregate):
+def import_data(profiles, weights, regions_to_aggregate):
     # Load data from file paths and return a dictionary with the loaded data
     # The following timeseries are expected: wind profiles, PV profiles, elec and heat load profiles, hydro inflow profiles
     # Load and inflow profiles will need custom column labels:

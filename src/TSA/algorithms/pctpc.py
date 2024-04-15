@@ -1,5 +1,5 @@
 # pctpc.py
-from .base import AggregationAlgorithm
+from TSA.algorithms.base import AggregationAlgorithm
 import numpy as np
 
 class PCTPCAggregator(AggregationAlgorithm):
@@ -19,19 +19,37 @@ class PCTPCAggregator(AggregationAlgorithm):
       d) If one of the clusters contains only vectors of subsets ΩM and ΩL, and the other contains only vectors of subset ΩL, they are merged and the resulting centroid is equal to the centroid of the former.
       e) If both clusters contain only vectors of subset ΩL, they are merged and the resulting centroid is computed using the formula in c).
     """
-    def __init__(self, data:np.ndarray, clusters_nr_final=False, error_acceptable=False, verbose=False, columns_for_priority=None, columns_for_similarity=False):
+    def __init__(self, data:np.ndarray, clusters_nr_final=False, acceptable_dissimilarity_percentile=False, verbose=False, 
+                 columns_for_priority=None, columns_for_similarity=False, nan=None):
         super().__init__()
-        if clusters_nr_final and error_acceptable:
-            raise ValueError("Only one of num_final_clusters or acceptable_final_error can be specified")
-        elif not clusters_nr_final and not error_acceptable:
-            clusters_nr_final = 24*7*2  # Default to 2 weeks of data
+        if clusters_nr_final and acceptable_dissimilarity_percentile:
+            raise ValueError("Only one of num_final_clusters or acceptable_dissimilarity_percentile can be specified")
+        elif not clusters_nr_final and not acceptable_dissimilarity_percentile:
+            #default is halving the number of timesteps
+            clusters_nr_final = len(data) // 2
             if verbose:
                 print(f"Using default number of final clusters: {clusters_nr_final}")
-        elif error_acceptable:
-            raise NotImplementedError("Error acceptable not yet implemented")
-            clusters_nr_final = 2
-            if verbose:
-                print(f"Using acceptable final error: {error_acceptable}")
+        elif acceptable_dissimilarity_percentile:
+            if type(acceptable_dissimilarity_percentile) == str:
+                acceptable_dissimilarity_percentile = float(acceptable_dissimilarity_percentile.strip("%"))
+            if type(acceptable_dissimilarity_percentile) not in [int, float]:
+                raise ValueError("acceptable_dissimilarity_percentile must be a number")
+        if type(columns_for_similarity) == dict:
+            # make sure that the keys are integers or tuples of integers
+            if not all([type(k) in [int, tuple] for k in columns_for_similarity.keys()]):
+                raise ValueError("The keys of columns_for_similarity must be integers or tuples of integers")
+            # make sure that the values are integers
+            if not all([type(v) == int for v in columns_for_similarity.values()]):
+                raise ValueError("The values of columns_for_similarity must be integers")
+            self.weights_for_similarity = np.array(list(columns_for_similarity.values()))
+            self.columns_for_similarity = list(columns_for_similarity.keys())
+        else:
+            if columns_for_similarity:
+                self.weights_for_similarity = np.array([1]*len(columns_for_similarity))
+                self.columns_for_similarity = columns_for_similarity
+            else:
+                self.weights_for_similarity = np.array([1]*data.shape[1])
+                self.columns_for_similarity = list(range(data.shape[1]))
         #if columns_for_priority and len(columns_for_priority) != data.shape[1]:
         #    raise ValueError("The number of columns for priority computation must match the number of columns in the data")
         #if columns_for_similarity and len(columns_for_similarity) != data.shape[1]:
@@ -39,20 +57,25 @@ class PCTPCAggregator(AggregationAlgorithm):
         self.data = data  # Assumed to be a numpy array where each row represents a timestep and each column represents a dimension of the vector
         self.verbose = verbose  # Whether to print debug information
         self.columns_for_priority = columns_for_priority if columns_for_priority else list(range(data.shape[1])) # The columns to use for priority computation
-        self.columns_for_similarity = columns_for_similarity if columns_for_similarity else list(range(data.shape[1])) # The columns to use for similarity computation
         self.clusters_nr_final = clusters_nr_final  # The desired number of clusters (K)
+        self.acceptable_dissimilarity_percentile = acceptable_dissimilarity_percentile  # The percentile of dissimilarity to use as a threshold
         self.priorities = np.array([0]*len(data))  # Initialize with lowest priority
         self.dissimilarity_vector = list(range(len(data) - 1))  # A vector to store the dissimilarity to the next cluster for each cluster
 
     def aggregate(self):
         self.assign_priorities()
         self.initialize_clusters()
-        while len(self.clusters) > self.clusters_nr_final:
-            self.merge_clusters() # this will update self.clusters and self.dissimilarity_vector
-            if self.verbose:
-                #print(f"Cluster sizes:", [len(self.clusters[i]["vectors"]) for i in range(len(self.clusters))])
-                #print(f"Clustered indices:", [self.clusters[i]["original_indices"] for i in range(len(self.clusters)) if self.clusters[i]["original_indices"][-1]<20])
-                pass
+        if self.clusters_nr_final:
+            while len(self.clusters) > self.clusters_nr_final:
+                self.merge_clusters() # this will update self.clusters and self.dissimilarity_vector
+                if self.verbose:
+                    #print(f"Cluster sizes:", [len(self.clusters[i]["vectors"]) for i in range(len(self.clusters))])
+                    #print(f"Clustered indices:", [self.clusters[i]["original_indices"] for i in range(len(self.clusters)) if self.clusters[i]["original_indices"][-1]<20])
+                    pass
+        elif self.acceptable_dissimilarity_percentile:
+            while np.min(self.dissimilarity_vector) < self.threshold_dissimilarity:
+                self.merge_clusters()
+                
         return self.clusters
     
     def assign_priorities(self):
@@ -157,6 +180,9 @@ class PCTPCAggregator(AggregationAlgorithm):
                 self.dissimilarity_vector[i-1] = self.compute_dissimilarity(self.clusters[i-1], self.clusters[i])
         if self.verbose:
             print(f"Initialized {len(self.clusters)} clusters and dissimilarity vector: {self.dissimilarity_vector[:10]} (10/{len(self.dissimilarity_vector)})")
+        if self.acceptable_dissimilarity_percentile:
+            self.threshold_dissimilarity = np.percentile(self.dissimilarity_vector, self.acceptable_dissimilarity_percentile)
+            
 
     def merge_clusters(self):
         """
@@ -250,7 +276,10 @@ class PCTPCAggregator(AggregationAlgorithm):
         size_j = len(cluster_j['vectors'])
 
         # Compute the squared Euclidean distance between the centroids
-        squared_distance = np.sum((centroid_i - centroid_j) ** 2)
+        squared_distance = np.sum(((centroid_i - centroid_j)*self.weights_for_similarity) ** 2)
+        # one way to account for nan values would be 
+        # np.sum(np.nan_to_num((centroid_i-centroid_j)**2,nan=0))
+        # where nans in centroid_i-centroid_j are replaced with 0 (aka no contribution to the dissimilarity for that dimension)
 
         # Calculate dissimilarity using Ward's method
         dissimilarity = 2.0 * size_i * size_j / (size_i + size_j) * squared_distance
@@ -268,32 +297,30 @@ class PCTPCAggregator(AggregationAlgorithm):
         array-like: A modified centroid containing only columns in columns_for_similarity.
         """
         modified_centroid = []
-        #for i, col in enumerate(self.columns_for_similarity):
         for col in self.columns_for_similarity:
-            # To add weighted columns, enumerate the above loop rescale each value in the centroid vector by the corresponding weight
             #w = self.weights_for_similarity[i]
-            w = 1
             if isinstance(col, (list, tuple)):
                 # Average the values of the specified columns
                 combined_value = np.mean([centroid[c] for c in col])
-                modified_centroid.append(combined_value*w)
+                modified_centroid.append(combined_value)
             else:
                 # Use the value of the specified column
-                modified_centroid.append(centroid[col]*w)
+                modified_centroid.append(centroid[col])
 
         return np.array(modified_centroid)
     
 
-def test_aggregator(timesteps=8760, dimensions=100, final_clusters=500):
+def test_aggregator(timesteps=15, dimensions=3, final_clusters=6):
     data = np.random.rand(timesteps, dimensions)
-    aggregator = PCTPCAggregator(data, clusters_nr_final=final_clusters, verbose=True, columns_for_priority=[0,(1,2)], columns_for_similarity=[0,(1,2)])
+    aggregator = PCTPCAggregator(data, clusters_nr_final=final_clusters, verbose=True, columns_for_priority=[0], columns_for_similarity=[0,(1,2)])
     clusters = aggregator.aggregate() 
+    return clusters
     # clusters is a list of dictionaries, each dictionary contains "centroid", "vectors" and "priority"
     # concatenating all the vectors in the clusters recreates the 'data' from the previous step
 
 if __name__ == "__main__":
     # Example usage
-    test_aggregator()
+    clusters = test_aggregator()
     # clusters is a list of dictionaries, each dictionary contains "centroid", "vectors" and "priority"
     # concatenating all the vectors in the clusters recreates the 'data' from the previous step
     print(f"Successfully clustered indices:", [cluster["original_indices"] for cluster in clusters])
