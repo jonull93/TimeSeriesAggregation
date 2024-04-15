@@ -3,9 +3,8 @@ import pandas as pd
 import openpyxl
 import numpy as np
 import re
-import pycountry
 import sys
-from utils import tech_names, VRE
+from TSA.utils import tech_names, VRE
 import os
 from pathlib import Path, WindowsPath
 
@@ -137,6 +136,7 @@ class DataFrameLoader():
             return False
         
     def name_columns(self):
+        import pycountry
         row = self.df.iloc[0]
         country_names = [i.name for i in pycountry.countries]
         for i, item in enumerate(row):
