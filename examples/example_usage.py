@@ -16,7 +16,7 @@ python "C:\...\TimeSeriesAggregator\docs\example_usage.py"
 ## Construct sample DataFrame 
 # read Load and Temp from "C:\Users\vijulk\OneDrive - Vitecsoftware Group AB\workspace.xlsx" Sheet2
 excel_path = get_filepath("example_usage.xlsx")
-df = pd.read_excel(excel_path, sheet_name="Sheet2")
+df = pd.read_excel(excel_path, sheet_name="Sheet2") # 4 days of hourly Load and Temp
 nr_rows = len(df) # 96 rows
 #df2 = pd.DataFrame(np.random.randint(0,nr_rows,size=(nr_rows, 2)), columns=list('AB')) # Free-rider columns A and B that do not affect dissimilarity calculation
 #df = pd.concat([df, df2], axis=1) # Load, Temp, A, B
@@ -25,11 +25,12 @@ nr_rows = len(df) # 96 rows
 final_length = nr_rows // 2 # Half of the initial length, in the form of an integer
 priority_columns = [0] # Maintain extrema for the Load column
 similarity_columns = [0, 1] # Consider Load and Temp columns for similarity calculation
-similarity_weights = [1, 2] # Weights for Load and Temp columns, respectively, when calculating dissimilarity between timesteps
+similarity_weights = [1, 1] # Weights for Load and Temp columns, respectively, when calculating dissimilarity between timesteps
 
-similarity_dict = {0: 1, 1: 2} 
-# similarity_dict = dict(zip(similarity_columns, similarity_weights)) # Alternative way to define similarity weights
-# weights = [2, 1] # Weights for Load and Temp columns, respectively. 
+if similarity_weights: # if similarity_weights is not empty
+    if len(similarity_weights) < len(similarity_columns):
+        similarity_weights += [0] * (len(similarity_columns) - len(similarity_weights)) # Fill up with 1s if weights are missing
+    similarity_dict = dict(zip(similarity_columns, similarity_weights)) # e.g. {0: 1, 1: 2} if cols=[0, 1] and weights=[1, 2]
 # Note that the dissimilarity includes (centroid_i - centroid_j) ** 2, meaning that the weights are effectively squared
 
 ## Run the PCTPC algorithm

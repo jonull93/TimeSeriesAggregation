@@ -18,9 +18,9 @@ def process_indata(data):
         raise NotImplementedError('Data type not supported. Please provide a pandas DataFrame.')
 
 def process_outdata_clusters(clusters:list, header, scaling_factors, ref_index=None, index_method:str='first'):
-    if type(ref_index) not in [pd.Index, list, np.ndarray, range]:
+    if type(ref_index) not in [pd.Index, list, np.ndarray, range, pd.RangeIndex]:
         ref_index = range(clusters[-1]['original_indices'][-1]+1)
-        print_red('Warning in process_outdata_clusters(): ref_index not provided. ref_index set to range(len(clusters)).')
+        print_red('Warning in process_outdata_clusters(): ref_index not provided - set to [0,1,2,..]')
 
     if index_method in ['first', 'last', 'all', 'span']:
         #build index from original_indices

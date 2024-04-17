@@ -17,6 +17,7 @@ license = {file = "LICENSE"}
 dependencies = [
     "numpy",
     "pandas"
+    "termcolor"
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
