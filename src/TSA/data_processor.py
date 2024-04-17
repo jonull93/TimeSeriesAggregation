@@ -19,7 +19,7 @@ def process_indata(data):
 
 def process_outdata_clusters(clusters:list, header, scaling_factors, ref_index=None, index_method:str='first'):
     if type(ref_index) not in [pd.Index, list, np.ndarray, range]:
-        ref_index = range(len(clusters))
+        ref_index = range(clusters[-1]['original_indices'][-1]+1)
         print_red('Warning in process_outdata_clusters(): ref_index not provided. ref_index set to range(len(clusters)).')
 
     if index_method in ['first', 'last', 'all', 'span']:
@@ -44,7 +44,8 @@ def process_outdata_clusters(clusters:list, header, scaling_factors, ref_index=N
     else:
         raise ValueError('Invalid index_method value. Please provide "first", "last", "all" or "span".')
 
-    data = np.array([clusters[i]['centroid'] for i in range(len(clusters))])*scaling_factors
+    data = np.array([clusters[i]['centroid'] for i in range(len(clusters))])
+    data = data*scaling_factors
         
     """if len(data)>len(index_method):
         index_method = range(len(data))
