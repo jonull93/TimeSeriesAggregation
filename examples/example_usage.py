@@ -1,5 +1,6 @@
 from TSA.algorithms.pctpc import PCTPCAggregator
 from TSA.data_importer import get_filepath
+from TSA.data_processor import process_indata, clusters_to_df, decompress_df
 import TSA
 import numpy as np
 import pandas as pd
@@ -14,18 +15,21 @@ python "C:\...\TimeSeriesAggregator\docs\example_usage.py"
 """
 
 ## Construct sample DataFrame 
-# read Load and Temp from "C:\Users\vijulk\OneDrive - Vitecsoftware Group AB\workspace.xlsx" Sheet2
 excel_path = get_filepath("example_usage.xlsx")
 df = pd.read_excel(excel_path, sheet_name="Sheet2") # 4 days of hourly Load and Temp
 nr_rows = len(df) # 96 rows
-#df2 = pd.DataFrame(np.random.randint(0,nr_rows,size=(nr_rows, 2)), columns=list('AB')) # Free-rider columns A and B that do not affect dissimilarity calculation
-#df = pd.concat([df, df2], axis=1) # Load, Temp, A, B
+
+# Path to save a figure illustrating the aggregation
+fig_path = os.path.join(__file__.split('src')[0],'data/output/example_usage.png') # Save the figure to the output folder of the module
 
 ## Set up parameters for the PCTPC algorithm
 final_length = nr_rows // 2 # Half of the initial length, in the form of an integer
 priority_columns = [0] # Maintain extrema for the Load column
 similarity_columns = [0, 1] # Consider Load and Temp columns for similarity calculation
 similarity_weights = [1, 1] # Weights for Load and Temp columns, respectively, when calculating dissimilarity between timesteps
+global_prio_period = 48 # Period for global priority calculation (the highest and lowest levels in each period are preserved)
+# 48 means daily in this case because the resolution is 30 min
+# once per every few days might be a good general rule-of-thumb
 
 if similarity_weights: # if similarity_weights is not empty
     if len(similarity_weights) < len(similarity_columns):
@@ -39,20 +43,13 @@ new_df, weight_list = TSA.from_df(df,
                             columns_for_priority=priority_columns,
                             columns_for_similarity=similarity_dict,
                             clusters_nr_final=final_length,
+                            global_prio_period=global_prio_period,
+                            show_fig=True,
+                            fig_path=fig_path,
                             verbose=True)
 
 new_df["Weights"] = weight_list
-
-# Initialize an empty DataFrame with the same columns as agg_df
-decompressed_df = pd.DataFrame(columns=new_df.columns) # for plotting
-
-# Loop through each row in agg_df
-for index, row in new_df.iterrows():
-    # Repeat the current row 'Weights' times and append to the decompressed_df
-    # np.repeat creates an array of the index, repeated 'Weights' times
-    repeated_rows = [row.values.tolist() for _ in range(int(row["Weights"]))]
-    decompressed_rows = pd.DataFrame(repeated_rows, columns=new_df.columns)
-    decompressed_df = pd.concat([decompressed_df, decompressed_rows], ignore_index=True)
+decompressed_df = decompress_df(new_df)
 
 with pd.ExcelWriter(excel_path, mode='a', engine='openpyxl', if_sheet_exists='replace') as writer:
     df.to_excel(writer, sheet_name="Original", index=False)

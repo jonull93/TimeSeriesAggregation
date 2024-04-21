@@ -17,10 +17,10 @@ def process_indata(data):
     else:
         raise NotImplementedError('Data type not supported. Please provide a pandas DataFrame.')
 
-def process_outdata_clusters(clusters:list, header, scaling_factors, ref_index=None, index_method:str='first'):
+def clusters_to_df(clusters:list, header, scaling_factors, ref_index=None, index_method:str='first'):
     if type(ref_index) not in [pd.Index, list, np.ndarray, range, pd.RangeIndex]:
         ref_index = range(clusters[-1]['original_indices'][-1]+1)
-        print_red('Warning in process_outdata_clusters(): ref_index not provided - set to [0,1,2,..]')
+        print_red('Warning in clusters_to_df(): ref_index not provided - set to [0,1,2,..]')
 
     if index_method in ['first', 'last', 'all', 'span']:
         #build index from original_indices
@@ -53,6 +53,28 @@ def process_outdata_clusters(clusters:list, header, scaling_factors, ref_index=N
 
     return pd.DataFrame(data, columns=header, index=built_index)
 
+def decompress_df(compressed_df:pd.DataFrame, weights=None):
+    # If weights==None, the 'Weights' column is used
+    # throw an error if 'Weights' column is not present
+    if 'weights' not in compressed_df.columns.str.lower():
+        if weights is None:
+            raise ValueError('Weights column not found in compressed_df. Please provide weights as an argument.')
+        else: 
+            compressed_df['Weights'] = weights
+
+
+    # Initialize an empty DataFrame with the same columns as agg_df
+    decompressed_df = pd.DataFrame(columns=compressed_df.columns) # for plotting
+
+    # Loop through each row in agg_df
+    for index, row in compressed_df.iterrows():
+        # Repeat the current row 'Weights' times and append to the decompressed_df
+        # np.repeat creates an array of the index, repeated 'Weights' times
+        repeated_rows = [row.values.tolist() for _ in range(int(row["Weights"]))]
+        decompressed_rows = pd.DataFrame(repeated_rows, columns=compressed_df.columns)
+        decompressed_df = pd.concat([decompressed_df, decompressed_rows], ignore_index=True)
+    
+    return decompressed_df
 
 def process_outdata_array(data:np.ndarray, header, scaling_factor, index=None):
     if type(index) not in [pd.Index, list, np.ndarray, range]:

@@ -20,7 +20,7 @@ class PCTPCAggregator(AggregationAlgorithm):
       e) If both clusters contain only vectors of subset ΩL, they are merged and the resulting centroid is computed using the formula in c).
     """
     def __init__(self, data:np.ndarray, clusters_nr_final=False, acceptable_dissimilarity_percentile=False, verbose=False, 
-                 columns_for_priority=None, columns_for_similarity=False, nan=None):
+                 columns_for_priority=None, columns_for_similarity=False, global_prio_period=None):
         super().__init__()
         if clusters_nr_final and acceptable_dissimilarity_percentile:
             raise ValueError("Only one of num_final_clusters or acceptable_dissimilarity_percentile can be specified")
@@ -36,10 +36,10 @@ class PCTPCAggregator(AggregationAlgorithm):
                 raise ValueError("acceptable_dissimilarity_percentile must be a number")
         if type(columns_for_similarity) == dict:
             # make sure that the keys are integers or tuples of integers
-            if not all([type(k) in [int, tuple] for k in columns_for_similarity.keys()]):
+            if not all([type(k) in [int, float, tuple] for k in columns_for_similarity.keys()]):
                 raise ValueError("The keys of columns_for_similarity must be integers or tuples of integers")
             # make sure that the values are integers
-            if not all([type(v) == int for v in columns_for_similarity.values()]):
+            if not all([type(v) in [int, float] for v in columns_for_similarity.values()]):
                 raise ValueError("The values of columns_for_similarity must be integers")
             self.weights_for_similarity = np.array(list(columns_for_similarity.values()))
             self.columns_for_similarity = list(columns_for_similarity.keys())
@@ -61,6 +61,9 @@ class PCTPCAggregator(AggregationAlgorithm):
         self.acceptable_dissimilarity_percentile = acceptable_dissimilarity_percentile  # The percentile of dissimilarity to use as a threshold
         self.priorities = np.array([0]*len(data))  # Initialize with lowest priority
         self.dissimilarity_vector = list(range(len(data) - 1))  # A vector to store the dissimilarity to the next cluster for each cluster
+        if global_prio_period and global_prio_period > len(data):
+            global_prio_period = None
+        self.global_prio_period = global_prio_period  # If a value, the highest priority is assigned to the highest and lowest values in each period of that length
 
     def aggregate(self):
         self.assign_priorities()
@@ -99,34 +102,72 @@ class PCTPCAggregator(AggregationAlgorithm):
         if len(self.columns_for_priority) > 1 and self.verbose:
             print(f"Final nr of high / medium / low priority timesteps: {np.sum(self.priorities == 3)} / {np.sum(self.priorities == 2)} / {np.sum(self.priorities == 1)}")
 
-    def find_priorities_for_column(self, column:np.ndarray, threshold=0):
+    def find_priorities_for_column(self, column:np.ndarray, nr_mid_prio=None):
         """
         Assign priorities for a single-dimensional array (column).
         - High priority: Global extrema
         - Medium priority: Local extrema that are sufficiently different from adjacent local extrema.
         - Low priority: Others
         """
-        global_max = np.max(column)
-        threshold = 0.10 * global_max
+        if nr_mid_prio is None:
+            nr_mid_prio = len(column) // 3
 
         priorities = np.array([1]*len(column))  # Initialize with lowest priority
 
         # Identify global extrema
-        global_max_indices = np.argwhere(column == global_max).flatten()
-        priorities = self.set_priority(global_max_indices, priorities, 3)  # Set high priority
-        global_min_indices = np.argwhere(column == np.min(column)).flatten()
-        priorities = self.set_priority(global_min_indices, priorities, 3)  # Set high priority
+        # If global_prio_period is set, the highest priority is assigned to the highest and lowest values in each period
+        if self.global_prio_period is not None:
+            for i in range(0, len(column), self.global_prio_period):
+                global_max_index = np.argmax(column[i:i + self.global_prio_period])
+                global_min_index = np.argmin(column[i:i + self.global_prio_period])
+                priorities = self.set_priority([i + global_max_index, i + global_min_index], priorities, 3)  # Set high priority
+        else:
+            global_max_indices = np.argwhere(column == np.max(column)).flatten()
+            priorities = self.set_priority(global_max_indices, priorities, 3)  # Set high priority
+            global_min_indices = np.argwhere(column == np.min(column)).flatten()
+            priorities = self.set_priority(global_min_indices, priorities, 3)  # Set high priority
 
         # Identify local extrema
         local_extrema_indices = np.argwhere(self.find_local_extrema(column)).flatten()
+        if self.verbose:
+            print(f"Setting priorities (nr_mid_prio: {nr_mid_prio})")
 
-        if threshold == 0:
-            priorities = self.set_priority(local_extrema_indices, priorities, 2)  # Set medium priority for all local extrema
-        else: # If there is a non-zero threshold, use it to filter out insignificantly different adjacent local extrema
-            for i in range(1, len(local_extrema_indices) - 1):
-                if abs(column[local_extrema_indices[i]] - column[local_extrema_indices[i - 1]]) > threshold \
-                        and abs(column[local_extrema_indices[i]] - column[local_extrema_indices[i + 1]]) > threshold:
-                    priorities = self.set_priority([local_extrema_indices[i]], priorities, 2)
+        if len(local_extrema_indices) < nr_mid_prio:
+            # If there are too few local extrema, set all of them to medium priority
+            priorities = self.set_priority(local_extrema_indices, priorities, 2)
+        else:
+            # We need to remove some local extrema
+            backwards_diff = np.abs(column[local_extrema_indices] - column[np.roll(local_extrema_indices, 1)])
+            forwards_diff = np.abs(column[local_extrema_indices] - column[np.roll(local_extrema_indices, -1)])
+            # Sorted list of all unique differences
+            all_diffs = np.unique(np.concatenate([backwards_diff, forwards_diff]))
+
+            threshold_idx = 0
+            threshold = all_diffs[threshold_idx]
+            if self.verbose:
+                print(f"Starting loop to reduce prio 2.. Threshold: {threshold}")
+            while True:
+                backwards_to_keep = [local_extrema_indices[i] for i in range(len(local_extrema_indices)) if backwards_diff[i] > threshold]
+                forwards_to_keep = [local_extrema_indices[i] for i in range(len(local_extrema_indices)) if forwards_diff[i] > threshold]
+                # Keep all extrema that are in either list
+                new_local_extrema_indices = np.array([index for index in local_extrema_indices if index in backwards_to_keep or index in forwards_to_keep])
+                if len(new_local_extrema_indices) <= nr_mid_prio:
+                    if self.verbose:
+                        print(f"Reduced to {len(new_local_extrema_indices)} local extrema.. Threshold: {threshold}")
+                    break
+                # Update the differences
+                threshold_idx += 1
+                threshold = all_diffs[threshold_idx]
+
+            priorities = self.set_priority(new_local_extrema_indices, priorities, 2)
+                
+            #for i in range(1, len(local_extrema_indices) - 1):
+                #backwards_diff = abs(column[local_extrema_indices[i]] - column[local_extrema_indices[i - 1]])
+                #forwards_diff = abs(column[local_extrema_indices[i]] - column[local_extrema_indices[i + 1]])
+
+                #if abs(column[local_extrema_indices[i]] - column[local_extrema_indices[i - 1]]) > threshold \
+                #        and abs(column[local_extrema_indices[i]] - column[local_extrema_indices[i + 1]]) > threshold:
+                #    priorities = self.set_priority([local_extrema_indices[i]], priorities, 2)
         if self.verbose:
             print(f"Nr of high / medium / low priority timesteps: {np.sum(priorities == 3)} / {np.sum(priorities == 2)} / {np.sum(priorities == 1)}")
         return priorities
@@ -269,6 +310,11 @@ class PCTPCAggregator(AggregationAlgorithm):
         Returns:
         float: The computed dissimilarity.
         """
+        
+        # If both clusters have prio 3, set dissimilarity to inf
+        if cluster_i['priority'] == 3 and cluster_j['priority'] == 3:
+            return np.inf
+        
         centroid_i = self.calculate_centroid_for_dissimilarity(cluster_i['centroid'])
         centroid_j = self.calculate_centroid_for_dissimilarity(cluster_j['centroid'])
 
@@ -283,6 +329,11 @@ class PCTPCAggregator(AggregationAlgorithm):
 
         # Calculate dissimilarity using Ward's method
         dissimilarity = 2.0 * size_i * size_j / (size_i + size_j) * squared_distance
+
+        # If two adjacent clusters both have prio 2, increase the dissimilarity by 10% to discourage merging by a little
+        if cluster_i['priority'] == 2 and cluster_j['priority'] == 2:
+            dissimilarity *= 1.1
+
         return dissimilarity
 
     def calculate_centroid_for_dissimilarity(self, centroid):

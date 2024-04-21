@@ -262,9 +262,9 @@ class XlsxWeightReader(WeightReader):
                 return list(range(i)), cols_to_use
             if self.version and self.version in col:
                 version_col = i
-        if self.version and version_col == None:
+        if self.version and version_col is None:
             raise ValueError(f"Unknown header without any {self.version} column in {self.filepath}")
-        elif version_col == None:
+        elif version_col is None:
             version_col = len(df.columns)-1
             print(f"Using last column ({df.columns[version_col]}) as version column")
         if self.verbose: print(f"Checking first row: {df.iloc[0].values}")

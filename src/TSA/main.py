@@ -7,9 +7,9 @@
 # The main function should be called when the script is executed.
 #from config_manager import parse_arguments
 from TSA.data_importer import import_data
-from TSA.data_processor import process_indata, process_outdata_clusters, process_outdata_array
+from TSA.data_processor import process_indata, clusters_to_df, process_outdata_array
 from TSA.algorithms.pctpc import PCTPCAggregator
-#from data_illustrator import create_plots
+from TSA.data_illustrator import create_plots
 #from data_exporter import export_data
 
 
@@ -35,7 +35,8 @@ def main():
     # create new files in the same format as the input files, but with the aggregated data
     pass
 
-def from_df(df, index_method='first', columns_for_priority=None, columns_for_similarity=None, clusters_nr_final=None, verbose=False, **kwargs):
+def from_df(df, index_method='first', columns_for_priority=None, columns_for_similarity=None, clusters_nr_final=None, 
+            show_fig=True, fig_path=None, verbose=False, **kwargs):
     """
     Function for aggregating data from a pandas DataFrame.
     :param df: pandas DataFrame
@@ -59,9 +60,18 @@ def from_df(df, index_method='first', columns_for_priority=None, columns_for_sim
     aggregator = PCTPCAggregator(data, columns_for_priority=columns_for_priority, columns_for_similarity=columns_for_similarity, 
                                  clusters_nr_final=clusters_nr_final, verbose=verbose, **kwargs)
     clusters = aggregator.aggregate() 
-    new_df = process_outdata_clusters(clusters, header, scaling_factors, index_method=index_method, ref_index=index)
+    new_df = clusters_to_df(clusters, header, scaling_factors, index_method=index_method, ref_index=index)
     weights = [len(clusters[i]['vectors']) for i in range(len(clusters))]
+
+    if show_fig or fig_path is not None:
+        create_plots(df, clusters, fig_path=fig_path, show_fig=show_fig)
     return new_df, weights
+
+def get_example_df():
+    import os
+    import pickle
+    full_path = os.path.join(__file__.split('src')[0],'data/input/df.pickle')
+    return pickle.load(open(full_path, 'rb'))
 
 
 if __name__ == "__main__":

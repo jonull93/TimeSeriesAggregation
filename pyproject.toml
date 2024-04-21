@@ -16,8 +16,9 @@ readme = "README.md"
 license = {file = "LICENSE"}
 dependencies = [
     "numpy",
-    "pandas"
-    "termcolor"
+    "pandas",
+    "termcolor",
+    "matplotlib",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
