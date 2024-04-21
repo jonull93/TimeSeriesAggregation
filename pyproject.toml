@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 [project]
 requires-python = ">=3.6"
 name = "TimeSeriesAggregator"
-version = "0.2"
+version = "0.3"
 keywords = ["time series", "data", "aggregation", "chronological aggregation"]
 authors = [{name = "Jonathan Ullmark"}]
 description = "A package for aggregating time series data."
